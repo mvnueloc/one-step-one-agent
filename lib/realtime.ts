@@ -90,10 +90,17 @@ export async function createSalesRealtimeSession(options?: {
         .describe("The preferred car type: economical, sport, or premium"),
       feedback: z.string().describe("The feedback provided by the user"),
     }),
-    async execute({ name, feedback }) {
+    async execute({ name, age, budget, capacity, carType, feedback }) {
       toast.success(`Gracias por su retroalimentación, ${name}.`);
       await connectionReady;
-      console.log("User feedback:", { name, feedback });
+      console.log("User feedback:", {
+        name,
+        age,
+        budget,
+        capacity,
+        carType,
+        feedback,
+      });
 
       // Llamar a API backend para procesar y guardar embeddings
       // await fetch("/api/store-feedback", {
@@ -173,9 +180,9 @@ export async function createSalesRealtimeSession(options?: {
       - Después de recomendar un coche y que le guste al cliente la opción, pregunta: "¿Qué le pareció la recomendación?"
       - Si el cliente da una respuesta positiva o dice si le gustó o no, llama a la herramienta saveUserFeedback.
       - Cuando hayas concluido la conversación (despedida incluida), llama a la herramienta endCall para finalizar la llamada, si te piden colgar tambien termina la llamada  usando la herramienta endCall.
-      - Mantén siempre un tono profesional, claro y orientado al cierre de venta rápido.
+      - Mantén siempre un tono profesional, claro y orientado al cierre de venta rápido, siempre avanza de con varias pregun para obtener de manera rapida el perfil del cliente.
     `,
-    tools: [getCarCatalog],
+    tools: [getCarCatalog, saveUserFeedback, endCall],
   });
 
   // Agente principal
