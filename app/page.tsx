@@ -5,7 +5,7 @@ import { ClientInfoCard } from "@/components/client-info-card";
 import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 // import { io } from "socket.io-client";
-import { createSalesRealtimeSession, type SalesSession } from "@/lib/realtime";
+import { createSalesRealtimeSession } from "@/lib/realtime";
 import { Toaster } from "sonner";
 
 export type CallRecord = {
@@ -32,7 +32,6 @@ export default function SalesAgentRecorder() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
 
-  const realtimeRef = useRef<SalesSession | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -67,7 +66,7 @@ export default function SalesAgentRecorder() {
           }));
         },
       });
-      realtimeRef.current = salesSession;
+
       await salesSession.connect();
       setIsRecording(true);
     } catch (error) {
@@ -76,10 +75,6 @@ export default function SalesAgentRecorder() {
   };
 
   const stopRecording = () => {
-    if (realtimeRef.current) {
-      realtimeRef.current.stop();
-      realtimeRef.current = null;
-    }
     setIsRecording(false);
   };
 
