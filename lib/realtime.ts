@@ -1,7 +1,11 @@
 "use client";
 
-
-import { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool } from "@openai/agents/realtime";
+import {
+  RealtimeAgent,
+  RealtimeSession,
+  OpenAIRealtimeWebRTC,
+  tool,
+} from "@openai/agents/realtime";
 
 import { toast } from "sonner";
 
@@ -29,7 +33,7 @@ export async function createSalesRealtimeSession(options?: {
     async execute() {
       console.log(carsDb);
       return carsDb;
-    }
+    },
   });
 
   const toScheduleAppointment = tool({
@@ -51,19 +55,23 @@ export async function createSalesRealtimeSession(options?: {
       return `Cita programada para ${name} el ${date} a las ${time}.`;
     },
   });
-  
+
   const saveUserFeedback = tool({
     name: "save_user_feedback",
     description: "Store the customer's feedback about a recommendation.",
     parameters: z.object({
       name: z.string().describe("The name of the customer"),
       feedback: z.string().describe("The feedback provided by the user"),
-      rating: z.number().min(1).max(5).nullable()
+      rating: z
+        .number()
+        .min(1)
+        .max(5)
+        .nullable()
         .describe("Numeric rating from 1 (bad) to 5 (excellent)"),
     }),
     async execute({ name, feedback, rating }) {
       console.log("User feedback:", { name, feedback, rating });
-      
+
       // Llamar a API backend para procesar y guardar embeddings
       // await fetch("/api/store-feedback", {
       //   method: "POST",
@@ -83,11 +91,21 @@ export async function createSalesRealtimeSession(options?: {
       name: z.string().describe("The name of the customer"),
       age: z.number().describe("The age of the customer"),
       budget: z.number().describe("The budget of the customer in USD"),
-      capacity: z.number().describe("Number of people that usually travel in the car"),
-      carType: z.string().describe("The preferred car type: economical, sport, or premium"),
+      capacity: z
+        .number()
+        .describe("Number of people that usually travel in the car"),
+      carType: z
+        .string()
+        .describe("The preferred car type: economical, sport, or premium"),
     }),
     async execute({ name, age, budget, capacity, carType }) {
-      console.log("setPersonalData called", { name, age, budget, capacity, carType });
+      console.log("setPersonalData called", {
+        name,
+        age,
+        budget,
+        capacity,
+        carType,
+      });
       try {
         onPersonalData?.({ name, age, budget, capacity, carType });
       } catch (e) {
@@ -106,7 +124,7 @@ export async function createSalesRealtimeSession(options?: {
       Haz preguntas para entender necesidades antes de recomendar.
       Siempre ofrece coches apropiados según perfil y capacidad.
     `,
-    tools: [getCarCatalog]
+    tools: [getCarCatalog],
   });
 
   // Agente principal
@@ -130,12 +148,17 @@ export async function createSalesRealtimeSession(options?: {
     handoffs: [carRecommendator],
   });
 
-  const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+  });
   const audioElement = document.createElement("audio");
   audioElement.autoplay = true;
 
   const transport = new OpenAIRealtimeWebRTC({ mediaStream, audioElement });
-  const session = new RealtimeSession(mainAgent, { transport, model: "gpt-realtime" });
+  const session = new RealtimeSession(mainAgent, {
+    transport,
+    model: "gpt-realtime",
+  });
 
   const connect = async () => {
     const res = await fetch("/api/realtime-key");
@@ -147,9 +170,13 @@ export async function createSalesRealtimeSession(options?: {
   };
 
   const stop = () => {
-    try { session.interrupt(); } catch {}
-    try { mediaStream.getTracks().forEach(t => t.stop()); } catch {}
+    try {
+      session.interrupt();
+    } catch {}
+    try {
+      mediaStream.getTracks().forEach((t) => t.stop());
+    } catch {}
   };
 
-  return { session, mediaStream, connect, stop, memory };
+  return { session, mediaStream, connect, stop };
 }
