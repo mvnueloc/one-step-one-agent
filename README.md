@@ -1,4 +1,5 @@
 # One Step One Agent
+<img width="1920" height="1440" alt="image" src="https://github.com/user-attachments/assets/e38796ee-89a6-439d-88a4-2679ba4ffd91" />
 
 A real-time AI-powered sales assistant designed to improve customer experience and conversion rates at **Kavak**.  
 This system listens to the customer's voice, gathers personal preferences, and provides tailored car recommendations through a live conversational interface powered by the **OpenAI Realtime API**.
@@ -45,6 +46,8 @@ flowchart TD
 - saveUserFeedback: Records the customer's evaluation and feedback.
 - getCarCatalog: Retrieves car data from a predefined dataset.
 -- scheduleAppointment: (optional) Books a follow-up meeting.
+
+<img width="1920" height="1440" alt="image" src="https://github.com/user-attachments/assets/74618528-b333-44c4-ba18-888c9e1f124e" />
 
 ## Realtime Infrastructure:
 
