@@ -6,6 +6,7 @@ import {
   OpenAIRealtimeWebRTC,
   tool,
 } from "@openai/agents/realtime";
+import { toast } from "sonner";
 import { z } from "zod";
 
 export type SalesSession = {
@@ -37,6 +38,11 @@ export async function createSalesRealtimeSession(options?: {
     description: "Return a list of cars.",
     parameters: z.object({}),
     async execute() {
+      console.log("getCarCatalog called");
+      toast("Herramienta de catálogo de coches activada", {
+        duration: 3000,
+        position: "top-center",
+      });
       return [
         {
           id: 1,
@@ -60,6 +66,10 @@ export async function createSalesRealtimeSession(options?: {
       time: z.string().describe("The preferred time for the appointment"),
     }),
     async execute({ name, date, time }) {
+      toast("Cita programada con éxito", {
+        duration: 3000,
+        position: "top-center",
+      });
       console.log("scheduleAppointment called", { name, date, time });
       // Aquí podrías integrar con un sistema real de agendamiento
       return `Cita programada para ${name} el ${date} a las ${time}.`;
@@ -78,6 +88,10 @@ export async function createSalesRealtimeSession(options?: {
     }),
     async execute({ name, age, budget, preferences }) {
       console.log("setPersonalData called", { name, age, budget, preferences });
+      toast("Herramienta de datos personales activada", {
+        duration: 3000,
+        position: "top-center",
+      });
       try {
         onPersonalData?.({ name, age, budget, preferences });
       } catch (e) {

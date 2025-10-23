@@ -6,6 +6,7 @@ import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 // import { io } from "socket.io-client";
 import { createSalesRealtimeSession, type SalesSession } from "@/lib/realtime";
+import { Toaster } from "sonner";
 
 export type CallRecord = {
   id: string;
@@ -92,6 +93,7 @@ export default function SalesAgentRecorder() {
 
   return (
     <>
+      <Toaster />
       <div className="modern-background" />
 
       <div className="min-h-screen p-3">
