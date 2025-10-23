@@ -106,18 +106,73 @@ export async function createSalesRealtimeSession(options?: {
         durationSeconds,
       });
 
-      // Llamar a API backend para procesar y guardar embeddings
-      // await fetch("/api/store-feedback", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ name, age, budget, capacity, carType, feedback, durationSeconds }),
-      // });
+      // Embed feedback
+      const feedbackText = `
+        Cliente: ${name}.
+        Edad: ${age} años.
+        Presupuesto: ${budget} MXM.
+        Capacidad deseada: ${capacity} personas.
+        Tipo de coche: ${carType}.
+        Feedback del cliente: ${feedback}.
+      `;
+
+      // Enviar feedback al endpoint de embed-feedback
+      await fetch("/api/embed-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: feedbackText,
+          metadata: { name, age, budget, capacity, carType, feedback },
+        }),
+      });
+
 
       return `Gracias, ${name}. Agradecemos su retroalimentación. (duración: ${Math.floor(
         durationSeconds / 60
       )}m ${durationSeconds % 60}s)`;
     },
   });
+
+  const findSimilarFeedback = tool({
+    name: "find_similar_feedback",
+    description:
+      "Busca feedbacks anteriores similares al texto actual del cliente usando embeddings almacenados en MongoDB.",
+    parameters: z.object({
+      queryText: z.string().describe("Texto base o feedback del cliente."),
+    }),
+    async execute({ queryText }) {
+      await connectionReady;
+      toast("Buscando feedbacks similares...", {
+        duration: 2500,
+        position: "top-center",
+      });
+
+      const res = await fetch("/api/search-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queryText }),
+      });
+
+      const data = await res.json();
+      console.log("Resultados de similitud:", data);
+
+      if (data.error) {
+        return `Error: ${data.error}`;
+      }
+
+      const { matches } = data;
+      if (!matches?.length) {
+        return "No se encontraron retroalimentaciones similares.";
+      }
+
+      let summary = "Retroalimentaciones más similares:\n";
+      for (const m of matches) {
+        summary += `• ${m.name} (${m.carType}) — "${m.feedback}" (Similitud: ${m.similarity})\n`;
+      }
+      return summary;
+    },
+  });
+
 
   const endCall = tool({
     name: "end_call",
@@ -150,7 +205,7 @@ export async function createSalesRealtimeSession(options?: {
       name: z.string().describe("The name of the customer"),
       phone: z.string().describe("The contact phone number of the customer"),
       age: z.number().describe("The age of the customer"),
-      budget: z.number().describe("The budget of the customer in USD"),
+      budget: z.number().describe("The budget of the customer in MXM"),
       capacity: z
         .number()
         .describe("Number of people that usually travel in the car"),
@@ -183,10 +238,8 @@ export async function createSalesRealtimeSession(options?: {
     name: "Car Recommendator",
     handoffDescription: "Specialist agent for car recommendations",
     instructions: `
-      Recomendaciones basadas en la base de datos de coches.
-      Considera el feedback previo de clientes similares (familias, solteros, etc.).
-      Haz preguntas para entender necesidades antes de recomendar.
-      Siempre ofrece coches apropiados según perfil y capacidad.
+        Eres un experto en recomendar coches de Kavak basado en las preferencias del cliente.
+        Tienes acceso a una base de datos de coches y a retroalimentaciones previas de otros clientes.
 
       - Considera que el presupuesto es aproximado: busca coches dentro de un rango de ±5% del presupuesto indicado, que no exceda el presupuesto.
       - Si excede el presupuesto, ofrece la mejor opción dentro del rango permitido y si no hay ninguna opcion ofrece un credito.
@@ -196,7 +249,7 @@ export async function createSalesRealtimeSession(options?: {
       - Cuando hayas concluido la conversación (despedida incluida), llama a la herramienta endCall para finalizar la llamada, si te piden colgar tambien termina la llamada  usando la herramienta endCall.
       - Mantén siempre un tono profesional, claro y orientado al cierre de venta rápido.
     `,
-    tools: [getCarCatalog, saveUserFeedback, endCall],
+    tools: [getCarCatalog, findSimilarFeedback, saveUserFeedback, endCall],
   });
 
   // Agente principal
