@@ -11,7 +11,6 @@ import { toast } from "sonner";
 
 import { z } from "zod";
 import { carsDb, Car } from "../data/cars_db";
-import { Toast } from "@radix-ui/react-toast";
 
 export type PersonalData = {
   name: string;
@@ -32,6 +31,8 @@ export type SalesRealtimeSession = {
 export async function createSalesRealtimeSession(options?: {
   onPersonalData?: (data: PersonalData) => void;
   onSessionEnded?: () => void;
+  // Devuelve el tiempo actual de la llamada en segundos
+  getRecordingTime?: () => number;
 }): Promise<SalesRealtimeSession> {
   const onPersonalData = options?.onPersonalData;
   const onSessionEnded = options?.onSessionEnded;
@@ -91,6 +92,8 @@ export async function createSalesRealtimeSession(options?: {
       feedback: z.string().describe("The feedback provided by the user"),
     }),
     async execute({ name, age, budget, capacity, carType, feedback }) {
+      // Obtener el tiempo actual de la llamada (segundos) desde la página
+      const durationSeconds = options?.getRecordingTime?.() ?? 0;
       toast.success(`Gracias por su retroalimentación, ${name}.`);
       await connectionReady;
       console.log("User feedback:", {
@@ -100,16 +103,19 @@ export async function createSalesRealtimeSession(options?: {
         capacity,
         carType,
         feedback,
+        durationSeconds,
       });
 
       // Llamar a API backend para procesar y guardar embeddings
       // await fetch("/api/store-feedback", {
       //   method: "POST",
       //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ name, feedback, rating }),
+      //   body: JSON.stringify({ name, age, budget, capacity, carType, feedback, durationSeconds }),
       // });
 
-      return `Gracias, ${name}. Agradecemos su retroalimentación.`;
+      return `Gracias, ${name}. Agradecemos su retroalimentación. (duración: ${Math.floor(
+        durationSeconds / 60
+      )}m ${durationSeconds % 60}s)`;
     },
   });
 
@@ -122,11 +128,16 @@ export async function createSalesRealtimeSession(options?: {
       console.log("endCall called");
       toast.success(`Llamada finalizada.`);
       await connectionReady;
-      try {
-        await requestEnd?.();
-      } catch (e) {
-        console.warn("Error ending call:", e);
-      }
+      // Importante: devuelve primero el resultado de la tool y cierra la sesión
+      // unos milisegundos después, para evitar que el SDK intente enviar la
+      // respuesta por un canal ya cerrado (data channel cerrado).
+      setTimeout(async () => {
+        try {
+          await requestEnd?.();
+        } catch (e) {
+          console.warn("Error ending call:", e);
+        }
+      }, 50);
       return "Llamada finalizada.";
     },
   });
@@ -177,10 +188,13 @@ export async function createSalesRealtimeSession(options?: {
       Haz preguntas para entender necesidades antes de recomendar.
       Siempre ofrece coches apropiados según perfil y capacidad.
 
+      - Considera que el presupuesto es aproximado: busca coches dentro de un rango de ±5% del presupuesto indicado, que no exceda el presupuesto.
+      - Si excede el presupuesto, ofrece la mejor opción dentro del rango permitido y si no hay ninguna opcion ofrece un credito.
+
       - Después de recomendar un coche y que le guste al cliente la opción, pregunta: "¿Qué le pareció la recomendación?"
       - Si el cliente da una respuesta positiva o dice si le gustó o no, llama a la herramienta saveUserFeedback.
       - Cuando hayas concluido la conversación (despedida incluida), llama a la herramienta endCall para finalizar la llamada, si te piden colgar tambien termina la llamada  usando la herramienta endCall.
-      - Mantén siempre un tono profesional, claro y orientado al cierre de venta rápido, siempre avanza de con varias pregun para obtener de manera rapida el perfil del cliente.
+      - Mantén siempre un tono profesional, claro y orientado al cierre de venta rápido.
     `,
     tools: [getCarCatalog, saveUserFeedback, endCall],
   });
@@ -189,6 +203,7 @@ export async function createSalesRealtimeSession(options?: {
   const mainAgent = new RealtimeAgent({
     name: "Andres",
     instructions: `Eres un agente de ventas de kavak y debes recopilar los datos del cliente y sus preferencias para hacer una recomendación usando el agente de recomendación de coches, Es importante que seas consiso para cerrar la venta lo mas rapido posible, el flujo seria:.
+    - Siempre avanza de con dos preguntas a la vez para obtener de manera rápida el perfil del       cliente.
       - Saluda al cliente con "Hola, bienvenido a Kavak, mi nombre es Andres y voy a ayudarte a encontrar el coche ideal, primero que nada ¿Con quién tengo el gusto de hablar (Nombre)? "
       - Preguntar datos basicos del cliente (nombre, edad, telefono de contacto, presupuesto para el coche, capacidad de personas que suelen viajar, tipo de coche que busca) puedes hacer preguntas adicionales para obtener esta información de manera natural.
       -Guardar los datos basicos usando la tool setPersonalData cada que vayas recopilando un dato nuevo.
@@ -196,9 +211,12 @@ export async function createSalesRealtimeSession(options?: {
       - Usa el agente de recomendación de coches para sugerir un coche basado en sus respuestas
       - Después de recomendar un coche y que le guste al cliente la opción, pregunta: "¿Qué le pareció la recomendación?"
       - Si el cliente da una respuesta positiva o dice si le gustó o no, llama a la herramienta saveUserFeedback.
+
       - Cuando hayas concluido la conversación (despedida incluida), llama a la herramienta endCall para finalizar la llamada, si te piden colgar tambien termina la llamada  usando la herramienta endCall.
+
       - si te piden colgar tambien termina la llamada  usando la herramienta end_call.
-        • Considera que el presupuesto es aproximado: busca coches dentro de un rango de ±15% del presupuesto indicado.
+        
+      
       `,
     tools: [setPersonalData, saveUserFeedback, endCall],
     handoffs: [carRecommendator],
