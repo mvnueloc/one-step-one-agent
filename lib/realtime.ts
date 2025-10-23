@@ -1,19 +1,12 @@
 "use client";
 
-import {
-  RealtimeAgent,
-  RealtimeSession,
-  OpenAIRealtimeWebRTC,
-  tool,
-} from "@openai/agents/realtime";
-import { z } from "zod";
 
-export type SalesSession = {
-  session: RealtimeSession;
-  mediaStream: MediaStream;
-  connect: () => Promise<void>;
-  stop: () => void;
-};
+import { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool } from "@openai/agents/realtime";
+
+import { toast } from "sonner";
+
+import { z } from "zod";
+import { carsDb, Car } from "../data/cars_db";
 
 export type PersonalData = {
   name: string;
@@ -23,32 +16,20 @@ export type PersonalData = {
   carType: string;
 };
 
-/**
- * Crea el agente principal y la sesión Realtime, configura micrófono/salida con WebRTC
- * y devuelve utilidades para conectar y detener.
- * Importante: en producción usa una clave efímera desde /api/realtime-key (no expongas tu sk_ en cliente).
- */
 export async function createSalesRealtimeSession(options?: {
   onPersonalData?: (data: PersonalData) => void;
-}): Promise<SalesSession> {
+}) {
   const onPersonalData = options?.onPersonalData;
-  // Tools de ejemplo basadas en tu snippet
+
+  // Tool para obtener catálogo de coches
   const getCarCatalog = tool({
     name: "get_car_catalog",
     description: "Return a list of cars.",
     parameters: z.object({}),
     async execute() {
-      return [
-        {
-          id: 1,
-          make: "Toyota",
-          model: "Camaro",
-          type: "Deportivo",
-          capacity: 2,
-        },
-        { id: 2, make: "Honda", model: "Accord", type: "Sedán", capacity: 5 },
-      ];
-    },
+      console.log(carsDb);
+      return carsDb;
+    }
   });
 
   const toScheduleAppointment = tool({
@@ -61,12 +42,16 @@ export async function createSalesRealtimeSession(options?: {
       time: z.string().describe("The preferred time for the appointment"),
     }),
     async execute({ name, date, time }) {
+      toast("Cita programada con éxito", {
+        duration: 3000,
+        position: "top-center",
+      });
       console.log("scheduleAppointment called", { name, date, time });
       // Aquí podrías integrar con un sistema real de agendamiento
       return `Cita programada para ${name} el ${date} a las ${time}.`;
     },
   });
-
+  
   const saveUserFeedback = tool({
     name: "save_user_feedback",
     description: "Store the customer's feedback about a recommendation.",
@@ -115,11 +100,16 @@ export async function createSalesRealtimeSession(options?: {
   const carRecommendator = new RealtimeAgent({
     name: "Car Recommendator",
     handoffDescription: "Specialist agent for car recommendations",
-    instructions:
-      "Siempre debes de recomendar un coche basado en las preferencias del usuario. Haz preguntas para entender mejor sus necesidades antes de hacer una recomendación. Solo puedes recomendar coches del catálogo proporcionado por la herramienta getCarCatalog.",
-    tools: [getCarCatalog],
+    instructions: `
+      Recomendaciones basadas en la base de datos de coches.
+      Considera el feedback previo de clientes similares (familias, solteros, etc.).
+      Haz preguntas para entender necesidades antes de recomendar.
+      Siempre ofrece coches apropiados según perfil y capacidad.
+    `,
+    tools: [getCarCatalog]
   });
 
+  // Agente principal
   const mainAgent = new RealtimeAgent({
     name: "Andres",
     instructions: `Eres un agente de ventas de kavak y debes recopilar los datos del cliente y sus preferencias para hacer una recomendación usando el agente de recomendación de coches, Es importante que seas consiso para cerrar la venta lo mas rapido posible, el flujo seria:.
@@ -140,38 +130,26 @@ export async function createSalesRealtimeSession(options?: {
     handoffs: [carRecommendator],
   });
 
-  // Preparamos media stream y transporte WebRTC para controlar el micrófono local
-  const mediaStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-  });
+  const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const audioElement = document.createElement("audio");
-  audioElement.autoplay = true; // reproducir respuestas del agente
+  audioElement.autoplay = true;
 
   const transport = new OpenAIRealtimeWebRTC({ mediaStream, audioElement });
-  const session = new RealtimeSession(mainAgent, {
-    transport,
-    model: "gpt-realtime",
-  });
+  const session = new RealtimeSession(mainAgent, { transport, model: "gpt-realtime" });
 
   const connect = async () => {
-    // Solicita clave efímera a tu backend
     const res = await fetch("/api/realtime-key");
     if (!res.ok) throw new Error("No se pudo obtener clave efímera");
     const data = await res.json();
     const apiKey: string | undefined = data?.value;
-    if (!apiKey) throw new Error("Respuesta sin 'value' de clave efímera");
+    if (!apiKey) throw new Error("Respuesta sin 'value'");
     await session.connect({ apiKey });
   };
 
   const stop = () => {
-    // Interrumpe y libera micrófono
-    try {
-      session.interrupt();
-    } catch {}
-    try {
-      mediaStream.getTracks().forEach((t) => t.stop());
-    } catch {}
+    try { session.interrupt(); } catch {}
+    try { mediaStream.getTracks().forEach(t => t.stop()); } catch {}
   };
 
-  return { session, mediaStream, connect, stop };
+  return { session, mediaStream, connect, stop, memory };
 }
