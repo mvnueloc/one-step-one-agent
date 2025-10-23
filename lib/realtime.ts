@@ -1,6 +1,10 @@
 "use client";
 
+
 import { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool } from "@openai/agents/realtime";
+
+import { toast } from "sonner";
+
 import { z } from "zod";
 import { carsDb, Car } from "../data/cars_db";
 
@@ -84,6 +88,26 @@ const setPersonalData = tool({
     return `Datos personales almacenados para ${name}.`;
   }
 });
+
+  const toScheduleAppointment = tool({
+    name: "schedule_appointment",
+    description:
+      "Schedule an appointment with a sales agent based on the customer's preferences and availability.",
+    parameters: z.object({
+      name: z.string().describe("The name of the customer"),
+      date: z.string().describe("The preferred date for the appointment"),
+      time: z.string().describe("The preferred time for the appointment"),
+    }),
+    async execute({ name, date, time }) {
+      toast("Cita programada con éxito", {
+        duration: 3000,
+        position: "top-center",
+      });
+      console.log("scheduleAppointment called", { name, date, time });
+      // Aquí podrías integrar con un sistema real de agendamiento
+      return `Cita programada para ${name} el ${date} a las ${time}.`;
+    },
+  });
 
   // Agente recomendador que usa feedback histórico
   const carRecommendator = new RealtimeAgent({
