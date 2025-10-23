@@ -51,3 +51,28 @@ flowchart TD
 - Audio handled via navigator.mediaDevices and WebRTC.
 - Secure connection using ephemeral keys from /api/realtime-key.
 - Communication with OpenAI Realtime API for low-latency interaction.
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+ installed  
+- Git  
+- A valid OpenAI API key  
+
+---
+
+### Clone the Repository
+```bash
+git clone https://github.com/mvnueloc/one-step-one-agent/edit/master/README.md
+cd one-step-one-agent
+```
+
+### Build and Run
+```bash
+npm install
+npm run dev
+```
+Then open your browser and visit:
+```bash
+http://localhost:3000
+```
