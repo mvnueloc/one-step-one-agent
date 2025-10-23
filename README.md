@@ -63,7 +63,7 @@ flowchart TD
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/mvnueloc/one-step-one-agent/edit/master/README.md
+git clone https://github.com/mvnueloc/one-step-one-agent.git
 cd one-step-one-agent
 ```
 
