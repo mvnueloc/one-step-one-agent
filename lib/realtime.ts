@@ -1,60 +1,93 @@
 "use client";
 
-import {
-  RealtimeAgent,
-  RealtimeSession,
-  OpenAIRealtimeWebRTC,
-  tool,
-} from "@openai/agents/realtime";
-import { toast } from "sonner";
-import { z } from "zod";
 
-export type SalesSession = {
-  session: RealtimeSession;
-  mediaStream: MediaStream;
-  connect: () => Promise<void>;
-  stop: () => void;
-};
+import { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool } from "@openai/agents/realtime";
+
+import { toast } from "sonner";
+
+import { z } from "zod";
+import { carsDb, Car } from "../data/cars_db";
 
 export type PersonalData = {
   name: string;
   age: number;
   budget: number;
   preferences: string;
+  familyMembers?: number;
 };
 
-/**
- * Crea el agente principal y la sesión Realtime, configura micrófono/salida con WebRTC
- * y devuelve utilidades para conectar y detener.
- * Importante: en producción usa una clave efímera desde /api/realtime-key (no expongas tu sk_ en cliente).
- */
+type FeedbackRecord = {
+  profileKey: string; // e.g., "family_4"
+  likedCarIds: number[];
+  dislikedCarIds: number[];
+};
+
+export class SalesAgentMemory {
+  private feedback: FeedbackRecord[] = [];
+
+  addFeedback(profileKey: string, carId: number, liked: boolean) {
+    let record = this.feedback.find(f => f.profileKey === profileKey);
+    if (!record) {
+      record = { profileKey, likedCarIds: [], dislikedCarIds: [] };
+      this.feedback.push(record);
+    }
+    if (liked) record.likedCarIds.push(carId);
+    else record.dislikedCarIds.push(carId);
+  }
+
+  getPreferredCars(profileKey: string): number[] {
+    const record = this.feedback.find(f => f.profileKey === profileKey);
+    return record?.likedCarIds || [];
+  }
+}
+
+export type SalesSession = {
+  session: RealtimeSession;
+  mediaStream: MediaStream;
+  connect: () => Promise<void>;
+  stop: () => void;
+  memory: SalesAgentMemory;
+};
+
 export async function createSalesRealtimeSession(options?: {
   onPersonalData?: (data: PersonalData) => void;
-}): Promise<SalesSession> {
+}) {
   const onPersonalData = options?.onPersonalData;
-  // Tools de ejemplo basadas en tu snippet
+  const memory = new SalesAgentMemory();
+
+  // Tool para obtener catálogo de coches
   const getCarCatalog = tool({
     name: "get_car_catalog",
     description: "Return a list of cars.",
     parameters: z.object({}),
     async execute() {
-      console.log("getCarCatalog called");
-      toast("Herramienta de catálogo de coches activada", {
-        duration: 3000,
-        position: "top-center",
-      });
-      return [
-        {
-          id: 1,
-          make: "Toyota",
-          model: "Camaro",
-          type: "Deportivo",
-          capacity: 2,
-        },
-        { id: 2, make: "Honda", model: "Accord", type: "Sedán", capacity: 5 },
-      ];
-    },
+      console.log(carsDb);
+      return carsDb;
+    }
   });
+
+// Tool para almacenar datos personales y feedback
+const setPersonalData = tool({
+  name: "set_personal_data",
+  description: "Store personal data + feedback",
+  parameters: z.object({
+    name: z.string(),
+    age: z.number(),
+    budget: z.number(),
+    preferences: z.string(),
+    familyMembers: z.number().nullable(),  // Cambiado de .optional() a .nullable()
+    likedCarId: z.number().nullable(),      // Cambiado de .optional() a .nullable()
+    liked: z.boolean().nullable()           // Cambiado de .optional() a .nullable()
+  }),
+  async execute({ name, age, budget, preferences, familyMembers, likedCarId, liked }) {
+    onPersonalData?.({ name, age, budget, preferences, familyMembers: familyMembers ?? undefined });
+    if (familyMembers && likedCarId && liked !== undefined && liked !== null) {
+      const profileKey = `family_${familyMembers}`;
+      memory.addFeedback(profileKey, likedCarId, liked);
+    }
+    return `Datos personales almacenados para ${name}.`;
+  }
+});
 
   const toScheduleAppointment = tool({
     name: "schedule_appointment",
@@ -76,85 +109,56 @@ export async function createSalesRealtimeSession(options?: {
     },
   });
 
-  const setPersonalData = tool({
-    name: "set_personal_data",
-    description:
-      "Store the personal data of the customer such as name, age, budget, and preferences.",
-    parameters: z.object({
-      name: z.string().describe("The name of the customer"),
-      age: z.number().describe("The age of the customer"),
-      budget: z.number().describe("The budget of the customer in USD"),
-      preferences: z.string().describe("The car preferences of the customer"),
-    }),
-    async execute({ name, age, budget, preferences }) {
-      console.log("setPersonalData called", { name, age, budget, preferences });
-      toast("Herramienta de datos personales activada", {
-        duration: 3000,
-        position: "top-center",
-      });
-      try {
-        onPersonalData?.({ name, age, budget, preferences });
-      } catch (e) {
-        console.warn("onPersonalData callback error:", e);
-      }
-      return `Datos personales almacenados para ${name}.`;
-    },
-  });
-
+  // Agente recomendador que usa feedback histórico
   const carRecommendator = new RealtimeAgent({
     name: "Car Recommendator",
     handoffDescription: "Specialist agent for car recommendations",
-    instructions:
-      "Siempre debes de recomendar un coche basado en las preferencias del usuario. Haz preguntas para entender mejor sus necesidades antes de hacer una recomendación. Solo puedes recomendar coches del catálogo proporcionado por la herramienta getCarCatalog.",
-    tools: [getCarCatalog],
+    instructions: `
+      Recomendaciones basadas en la base de datos de coches.
+      Considera el feedback previo de clientes similares (familias, solteros, etc.).
+      Haz preguntas para entender necesidades antes de recomendar.
+      Siempre ofrece coches apropiados según perfil y capacidad.
+    `,
+    tools: [getCarCatalog]
   });
 
+  // Agente principal
   const mainAgent = new RealtimeAgent({
     name: "Andres",
-    instructions: `Eres un agente de ventas de kavak y debes recopilar los datos del cliente y sus preferencias para hacer una recomendación usando el agente de recomendación de coches, Es importante que seas consiso para cerrar la venta lo mas rapido posible, el flujo seria:.
-      - Saluda al cliente
-      - Preguntar datos basicos del cliente (nombre, edad, presupuesto)
-      - Pregunta por sus preferencias (tipo de coche, capacidad, presupuesto)
-      - Llamar a la tool setPersonalData para almacenar los datos
-      - Usa el agente de recomendación de coches para sugerir un coche basado en sus respuestas
-      - Cierra la venta de manera efectiva y rápida.
-      `,
+    instructions: `
+      Eres un agente de ventas. Debes recopilar los datos del cliente, generar recomendación de coches y preguntar feedback.
+      Flujo:
+      1. Saluda al cliente
+      2. Pregunta datos básicos (nombre, edad, presupuesto, cuántas personas viajan)
+      3. Llama a setPersonalData para almacenar datos
+      4. Usa carRecommendator para sugerir coche
+      5. Pregunta si le gustó (feedback)
+      6. Actualiza memoria para mejorar futuras recomendaciones
+    `,
     tools: [setPersonalData],
-    handoffs: [carRecommendator],
+    handoffs: [carRecommendator]
   });
 
-  // Preparamos media stream y transporte WebRTC para controlar el micrófono local
-  const mediaStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-  });
+  const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const audioElement = document.createElement("audio");
-  audioElement.autoplay = true; // reproducir respuestas del agente
+  audioElement.autoplay = true;
 
   const transport = new OpenAIRealtimeWebRTC({ mediaStream, audioElement });
-  const session = new RealtimeSession(mainAgent, {
-    transport,
-    model: "gpt-realtime",
-  });
+  const session = new RealtimeSession(mainAgent, { transport, model: "gpt-realtime" });
 
   const connect = async () => {
-    // Solicita clave efímera a tu backend
     const res = await fetch("/api/realtime-key");
     if (!res.ok) throw new Error("No se pudo obtener clave efímera");
     const data = await res.json();
     const apiKey: string | undefined = data?.value;
-    if (!apiKey) throw new Error("Respuesta sin 'value' de clave efímera");
+    if (!apiKey) throw new Error("Respuesta sin 'value'");
     await session.connect({ apiKey });
   };
 
   const stop = () => {
-    // Interrumpe y libera micrófono
-    try {
-      session.interrupt();
-    } catch {}
-    try {
-      mediaStream.getTracks().forEach((t) => t.stop());
-    } catch {}
+    try { session.interrupt(); } catch {}
+    try { mediaStream.getTracks().forEach(t => t.stop()); } catch {}
   };
 
-  return { session, mediaStream, connect, stop };
+  return { session, mediaStream, connect, stop, memory };
 }
