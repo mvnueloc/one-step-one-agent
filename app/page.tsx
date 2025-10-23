@@ -5,7 +5,7 @@ import { ClientInfoCard } from "@/components/client-info-card";
 import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 // import { io } from "socket.io-client";
-import { createSalesRealtimeSession } from "@/lib/realtime";
+import { createSalesRealtimeSession, PersonalData } from "@/lib/realtime";
 import { Toaster } from "sonner";
 
 export type CallRecord = {
@@ -31,6 +31,10 @@ export default function SalesAgentRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [currentClient, setCurrentClient] = useState<Client | null>(null);
+  const [personalData, setPersonalData] = useState<PersonalData | null>(null);
+  const salesSessionRef = useRef<
+    import("@/lib/realtime").SalesRealtimeSession | null
+  >(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -55,18 +59,26 @@ export default function SalesAgentRecorder() {
     try {
       // Crear sesión Realtime y conectar (WebRTC maneja micrófono/salida automáticamente)
       const salesSession = await createSalesRealtimeSession({
-        onPersonalData: ({ name }) => {
+        onPersonalData: ({ name, phone, age, budget, capacity, carType }) => {
+          // Guardar datos completos de la persona
+          setPersonalData({ name, phone, age, budget, capacity, carType });
+
           setCurrentClient((prev) => ({
             name,
             company: prev?.company ?? "—",
             email: prev?.email ?? "—",
-            phone: prev?.phone ?? "—",
+            phone: phone ?? prev?.phone ?? "—",
             lastContact: new Date().toLocaleDateString("es-ES"),
             status: prev?.status ?? "Prospecto",
           }));
         },
+        onSessionEnded: () => {
+          // Refrescar UI cuando el agente finaliza la llamada automáticamente
+          salesSessionRef.current = null;
+          setIsRecording(false);
+        },
       });
-
+      salesSessionRef.current = salesSession;
       await salesSession.connect();
       setIsRecording(true);
     } catch (error) {
@@ -74,8 +86,15 @@ export default function SalesAgentRecorder() {
     }
   };
 
-  const stopRecording = () => {
-    setIsRecording(false);
+  const stopRecording = async () => {
+    try {
+      await salesSessionRef.current?.stop();
+    } catch (e) {
+      console.warn("Error deteniendo la sesión:", e);
+    } finally {
+      salesSessionRef.current = null;
+      setIsRecording(false);
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -88,7 +107,7 @@ export default function SalesAgentRecorder() {
 
   return (
     <>
-      <Toaster />
+      <Toaster position="top-center" />
       <div className="modern-background" />
 
       <div className="min-h-screen p-3">
@@ -122,7 +141,10 @@ export default function SalesAgentRecorder() {
 
           <main className="flex flex-1 flex-col gap-3 md:gap-4">
             {currentClient ? (
-              <ClientInfoCard client={currentClient} />
+              <ClientInfoCard
+                client={currentClient}
+                personalData={personalData}
+              />
             ) : (
               <div className="flex flex-1 items-center justify-center">
                 <p className="text-sm text-muted-foreground">
