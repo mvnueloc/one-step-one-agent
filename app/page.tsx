@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { ClientInfoCard } from "@/components/client-info-card";
 import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 // import { io } from "socket.io-client";
 import { createSalesRealtimeSession, PersonalData } from "@/lib/realtime";
 import { Toaster } from "sonner";
@@ -141,6 +142,12 @@ export default function SalesAgentRecorder() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                asChild
+                variant="outline"
+                className="hidden md:inline-flex border-primary/20 hover:bg-primary/10">
+                <Link href="/call-history">Ver historial</Link>
+              </Button>
               {(isRecording || isConnecting) && (
                 <div className="rounded-md bg-muted px-3 py-1.5 font-mono text-sm tabular-nums text-foreground/90">
                   {formatTime(recordingTime)}
