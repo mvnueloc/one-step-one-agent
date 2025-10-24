@@ -53,7 +53,7 @@ flowchart TD
 
 
 ## Metrics
-We use metrics like cosine similarity to evaluate each embedding. If a high similarity is detected, the system goes straight to the recommendation without asking redundant questions, allowing for faster, hyper-personalized suggestions that feel intuitive and context-aware, improving customer satisfaction and conversion rates.
+We use cosine similarity as principal metric to evaluate each embedding. If a high similarity is detected, the system goes straight to the recommendation without asking redundant questions, allowing for faster, hyper-personalized suggestions that feel intuitive and context-aware, improving customer satisfaction and conversion rates.
 
 
   <img width="1920" height="1440" alt="image" src="https://github.com/user-attachments/assets/1ee61674-7b74-4da3-8bbb-5d3adf44f6b1" />
