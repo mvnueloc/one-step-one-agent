@@ -17,6 +17,9 @@ Customers frequently abandon conversations when they can’t receive fast and pe
 - Recommending cars based on budget, age, and needs.  
 - Storing customer feedback for continuous improvement.
 
+## Metrics
+We use metrics like cosine similarity to evaluate each embedding. If a high similarity is detected, the system goes straight to the recommendation without asking redundant questions, allowing for faster, hyper-personalized suggestions that feel intuitive and context-aware, improving customer satisfaction and conversion rates.
+
 
 <img width="1920" height="1440" alt="image" src="https://github.com/user-attachments/assets/74618528-b333-44c4-ba18-888c9e1f124e" />
 
@@ -49,6 +52,7 @@ flowchart TD
 - saveUserFeedback: Records the customer's evaluation and feedback.
 - getCarCatalog: Retrieves car data from a predefined dataset.
 -- scheduleAppointment: (optional) Books a follow-up meeting.
+
 
   <img width="1920" height="1440" alt="image" src="https://github.com/user-attachments/assets/1ee61674-7b74-4da3-8bbb-5d3adf44f6b1" />
 
